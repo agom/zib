@@ -1,0 +1,20 @@
+{
+  "hostname": "zib",
+  "timezone": "UTC",
+  "locale_config": {
+    "kb_layout": "us",
+    "sys_lang": "en_US"
+  },
+  "bootloader": "Systemd-boot",
+  "uki": false,
+  "audio_config": {
+    "audio": "pipewire"
+  },
+  "kernels": [
+    "linux"
+  ],
+  "network_config": {
+    "type": "nm"
+  },
+  "swap": false
+}
