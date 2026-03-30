@@ -18,14 +18,11 @@ fi
 install -d -o "$TARGET_USER" -g "$TARGET_USER" "$USER_HOME/.venv"
 su - "$TARGET_USER" -c "python -m venv '$USER_HOME/.venv'"
 
-install -d -o "$TARGET_USER" -g "$TARGET_USER" "$USER_HOME/.config/ghostty"
-cat >"$USER_HOME/.config/ghostty/config" <<'EOF'
-theme = catppuccin-mocha
-font-family = JetBrainsMono Nerd Font
-font-size = 12
-cursor-style = block
-EOF
-chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.config/ghostty/config"
+terminal_cmd="foot"
+
+if command -v ghostty >/dev/null 2>&1; then
+  terminal_cmd="ghostty"
+fi
 
 install -d -o "$TARGET_USER" -g "$TARGET_USER" "$USER_HOME/.config/hypr"
 if [[ ! -f "$USER_HOME/.config/hypr/hyprland.conf" ]]; then
@@ -36,8 +33,10 @@ exec-once = udiskie --notify
 exec-once = wl-paste --type text --watch cliphist store
 
 $mod = SUPER
-bind = $mod, SPACE, exec, walker
-bind = $mod SHIFT, RETURN, exec, ghostty
+bind = $mod, SPACE, exec, wofi --show drun
+bind = $mod, RETURN, exec, __TERMINAL_CMD__
+bind = $mod, Q, killactive
 EOF
+  sed -i "s|__TERMINAL_CMD__|$terminal_cmd|" "$USER_HOME/.config/hypr/hyprland.conf"
   chown "$TARGET_USER:$TARGET_USER" "$USER_HOME/.config/hypr/hyprland.conf"
 fi

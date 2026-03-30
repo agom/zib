@@ -5,7 +5,17 @@
     "kb_layout": "us",
     "sys_lang": "en_US"
   },
-  "bootloader": "Systemd-boot",
+  "disk_config": {
+    "config_type": "default_layout",
+    "device_modifications": [
+      {
+        "device": "/dev/sda",
+        "partitions": [],
+        "wipe": true
+      }
+    ]
+  },
+  "bootloader": "systemd-boot",
   "uki": false,
   "audio_config": {
     "audio": "pipewire"

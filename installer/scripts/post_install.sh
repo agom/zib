@@ -37,6 +37,7 @@ install_repo_packages() {
     fzf
     ffmpeg
     vlc
+    firefox
     qbittorrent
     bat
     ripgrep
@@ -46,9 +47,7 @@ install_repo_packages() {
     tree
     btop
     unzip
-    zip
-    xz
-    wget
+    zip xz wget
     curl
     rsync
     tmux
@@ -71,6 +70,7 @@ install_repo_packages() {
     udisks2
     udiskie
     gvfs
+    thunar
     grim
     slurp
     wl-clipboard
@@ -79,37 +79,33 @@ install_repo_packages() {
     ttf-jetbrains-mono-nerd
     noto-fonts
     noto-fonts-emoji
-    bibata-cursor-theme
+    xdg-user-dirs
     hyprland
     waybar
-    walker
-    ghostty
+    wofi
+    foot
     greetd
-    tuigreet
+    greetd-tuigreet
     xdg-utils
     pciutils
   )
 
-  pacman -S --needed --noconfirm "${packages[@]}"
+  pacman -Syu --needed --noconfirm "${packages[@]}"
 }
 
-setup_yay() {
-  if command -v yay >/dev/null 2>&1; then
+install_terminal_package() {
+  log "Selecting terminal package"
+
+  if [[ -n "${ZIB_TERMINAL:-}" ]]; then
+    pacman -S --needed --noconfirm "$ZIB_TERMINAL"
     return
   fi
 
-  log "Installing yay"
-  local tmpdir
-  tmpdir="$(mktemp -d)"
-  chown "$TARGET_USER:$TARGET_USER" "$tmpdir"
-  su - "$TARGET_USER" -c "git clone https://aur.archlinux.org/yay.git '$tmpdir/yay'"
-  su - "$TARGET_USER" -c "cd '$tmpdir/yay' && makepkg -si --noconfirm"
-  rm -rf "$tmpdir"
-}
-
-install_aur_defaults() {
-  log "AUR defaults (interactive review enabled by yay)"
-  su - "$TARGET_USER" -c "yay -S --needed visual-studio-code-bin google-chrome candy-icons-git catppuccin-gtk-theme-mocha"
+  if [[ -e /dev/dri/renderD128 ]]; then
+    pacman -S --needed --noconfirm ghostty
+  else
+    pacman -S --needed --noconfirm foot
+  fi
 }
 
 configure_services() {
@@ -117,6 +113,8 @@ configure_services() {
   systemctl enable NetworkManager.service
   systemctl enable bluetooth.service
   systemctl enable greetd.service
+  systemctl set-default graphical.target
+  systemctl disable getty@tty1.service || true
 }
 
 configure_greetd() {
@@ -125,9 +123,10 @@ configure_greetd() {
   cat >/etc/greetd/config.toml <<EOF
 [terminal]
 vt = 1
+switch = true
 
 [default_session]
-command = "tuigreet --cmd Hyprland"
+command = "/usr/bin/tuigreet --cmd /usr/bin/start-hyprland"
 user = "greeter"
 EOF
 }
@@ -164,7 +163,13 @@ EOF
 
 configure_user_defaults() {
   log "Setting user defaults"
+  if [[ "$(stat -c %U "/home/$TARGET_USER")" != "$TARGET_USER" ]]; then
+    log "Fixing home ownership for $TARGET_USER"
+    chown -R "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER"
+  fi
+
   chsh -s /bin/zsh "$TARGET_USER"
+  usermod -aG wheel,audio,video,input,storage "$TARGET_USER"
 
   install -d -o "$TARGET_USER" -g "$TARGET_USER" "/home/$TARGET_USER/.config/systemd/user"
   cat >"/home/$TARGET_USER/.config/systemd/user/udiskie.service" <<EOF
@@ -180,15 +185,16 @@ Restart=on-failure
 WantedBy=default.target
 EOF
   chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.config/systemd/user/udiskie.service"
-  su - "$TARGET_USER" -c "systemctl --user daemon-reload"
-  su - "$TARGET_USER" -c "systemctl --user enable udiskie.service"
+  install -d -o "$TARGET_USER" -g "$TARGET_USER" "/home/$TARGET_USER/.config/systemd/user/default.target.wants"
+  ln -sf ../udiskie.service "/home/$TARGET_USER/.config/systemd/user/default.target.wants/udiskie.service"
+  chown -h "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.config/systemd/user/default.target.wants/udiskie.service"
 
   install -d /usr/local/bin
   cat >/usr/local/bin/zib-update <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "Updating system + AUR packages..."
-yay -Syu
+echo "Updating system packages..."
+sudo pacman -Syu
 EOF
   chmod +x /usr/local/bin/zib-update
 
@@ -212,6 +218,25 @@ EOF
     cp /etc/skel/.zshrc "/home/$TARGET_USER/.zshrc"
     chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.zshrc"
   fi
+
+  su - "$TARGET_USER" -c "xdg-user-dirs-update"
+
+  install -d -o "$TARGET_USER" -g "$TARGET_USER" "/home/$TARGET_USER/.config"
+  cat >"/home/$TARGET_USER/.config/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=firefox.desktop
+x-scheme-handler/https=firefox.desktop
+text/html=firefox.desktop
+inode/directory=thunar.desktop
+EOF
+  chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.config/mimeapps.list"
+
+  install -d /etc/profile.d
+  cat >/etc/profile.d/zib-wayland.sh <<'EOF'
+export MOZ_ENABLE_WAYLAND=1
+export XDG_CURRENT_DESKTOP=Hyprland
+export XDG_SESSION_TYPE=wayland
+EOF
 }
 
 run_first_boot() {
@@ -228,8 +253,7 @@ install_first_boot_script() {
 main() {
   log "Installing repository packages"
   install_repo_packages
-  setup_yay
-  install_aur_defaults
+  install_terminal_package
   configure_services
   configure_greetd
   configure_gpu_defaults
