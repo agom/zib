@@ -19,9 +19,9 @@ fi
 # pre-creating the directory causes python 3.11+ to error with EEXIST.
 su - "$TARGET_USER" -c "python -m venv '$USER_HOME/.venv'"
 
-# Detect terminal: prefer ghostty if installed, fall back to foot.
+# Detect terminal: prefer ghostty if a GPU render node is present, fall back to foot.
 terminal_cmd="foot"
-if command -v ghostty >/dev/null 2>&1; then
+if [[ -e /dev/dri/renderD128 ]] && command -v ghostty >/dev/null 2>&1; then
   terminal_cmd="ghostty"
 fi
 
