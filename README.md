@@ -73,6 +73,7 @@ When archinstall finishes, **do not reboot yet**. Choose "Return to menu" and ex
 ```bash
 cp installer/scripts/post_install.sh /mnt/root/
 cp installer/scripts/first_boot.sh   /mnt/root/
+cp installer/scripts/aur_install.sh  /mnt/home/dev/
 ```
 
 ### 5. Run the post-install script
@@ -107,16 +108,10 @@ Log in as `dev` through the TUI greeter. Hyprland will start automatically.
 
 ### 7. Install AUR packages
 
-Once inside the desktop, open a terminal (`Super+Return`) and run the AUR installer **as the regular user**:
+Once inside the desktop, open a terminal (`Super+Return`) and run:
 
 ```bash
 bash ~/aur_install.sh
-```
-
-Or, if you want to run it from the repo:
-
-```bash
-bash /path/to/zib/installer/scripts/aur_install.sh
 ```
 
 This builds and installs `yay`, then installs:
