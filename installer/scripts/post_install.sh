@@ -88,6 +88,8 @@ install_repo_packages() {
     noto-fonts
     noto-fonts-emoji
     xdg-user-dirs
+    nwg-look
+    nwg-displays
     hyprland
     waybar
     wofi
