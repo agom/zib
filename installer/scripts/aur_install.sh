@@ -26,7 +26,7 @@ install_yay() {
   fi
 
   log "Installing build prerequisites"
-  sudo pacman -Syu --needed base-devel git go
+  sudo pacman -Syu --needed --noconfirm base-devel git go
 
   log "Building yay from AUR"
   local tmpdir
@@ -34,14 +34,14 @@ install_yay() {
   git clone https://aur.archlinux.org/yay.git "$tmpdir/yay"
   (
     cd "$tmpdir/yay"
-    makepkg -si
+    makepkg -si --noconfirm
   )
   rm -rf "$tmpdir"
 }
 
 install_aur_packages() {
   log "Installing AUR defaults"
-  yay -S --needed visual-studio-code-bin candy-icons-git catppuccin-gtk-theme-mocha
+  yay -S --needed --noconfirm visual-studio-code-bin candy-icons-git catppuccin-gtk-theme-mocha
 }
 
 main() {

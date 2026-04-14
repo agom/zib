@@ -9,6 +9,12 @@ fi
 
 TARGET_USER="$1"
 
+# Validate username against a safe allowlist
+if [[ ! "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+  echo "Invalid username: '$TARGET_USER'"
+  exit 1
+fi
+
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
   echo "User '$TARGET_USER' does not exist"
   exit 1
@@ -47,7 +53,9 @@ install_repo_packages() {
     tree
     btop
     unzip
-    zip xz wget
+    zip
+    xz
+    wget
     curl
     rsync
     tmux
@@ -84,28 +92,15 @@ install_repo_packages() {
     waybar
     wofi
     foot
+    ghostty
     greetd
     greetd-tuigreet
     xdg-utils
     pciutils
   )
 
+  # Full upgrade first, then install all packages in one pass
   pacman -Syu --needed --noconfirm "${packages[@]}"
-}
-
-install_terminal_package() {
-  log "Selecting terminal package"
-
-  if [[ -n "${ZIB_TERMINAL:-}" ]]; then
-    pacman -S --needed --noconfirm "$ZIB_TERMINAL"
-    return
-  fi
-
-  if [[ -e /dev/dri/renderD128 ]]; then
-    pacman -S --needed --noconfirm ghostty
-  else
-    pacman -S --needed --noconfirm foot
-  fi
 }
 
 configure_services() {
@@ -119,10 +114,18 @@ configure_services() {
 
 configure_greetd() {
   log "Configuring greetd + tuigreet"
+
+  # Create the start-hyprland wrapper used by greetd
+  cat >/usr/bin/start-hyprland <<'EOF'
+#!/usr/bin/env bash
+exec /usr/bin/Hyprland
+EOF
+  chmod +x /usr/bin/start-hyprland
+
   install -d /etc/greetd
   cat >/etc/greetd/config.toml <<EOF
 [terminal]
-vt = 1
+vt = 2
 switch = true
 
 [default_session]
@@ -140,7 +143,7 @@ configure_gpu_defaults() {
   chown "$TARGET_USER:$TARGET_USER" "$hypr_env_file"
 
   if lspci | grep -qi nvidia; then
-    pacman -S --needed --noconfirm nvidia-open-dkms nvidia-utils lib32-nvidia-utils
+    pacman -S --needed --noconfirm linux-headers dkms nvidia-open-dkms nvidia-utils lib32-nvidia-utils
     install -d /etc/modprobe.d /etc/mkinitcpio.conf.d
     cat >/etc/modprobe.d/nvidia.conf <<EOF
 options nvidia_drm modeset=1
@@ -148,6 +151,7 @@ EOF
     cat >/etc/mkinitcpio.conf.d/nvidia.conf <<EOF
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 EOF
+    mkinitcpio -P
     ensure_line "env = LIBVA_DRIVER_NAME,nvidia" "$hypr_env_file"
     ensure_line "env = __GLX_VENDOR_LIBRARY_NAME,nvidia" "$hypr_env_file"
   fi
@@ -168,7 +172,7 @@ configure_user_defaults() {
     chown -R "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER"
   fi
 
-  chsh -s /bin/zsh "$TARGET_USER"
+  chsh -s /usr/bin/zsh "$TARGET_USER"
   usermod -aG wheel,audio,video,input,storage "$TARGET_USER"
 
   install -d -o "$TARGET_USER" -g "$TARGET_USER" "/home/$TARGET_USER/.config/systemd/user"
@@ -178,7 +182,7 @@ Description=udiskie automount daemon
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/udiskie --no-automount=false --notify
+ExecStart=/usr/bin/udiskie --notify
 Restart=on-failure
 
 [Install]
@@ -194,7 +198,11 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 echo "Updating system packages..."
-sudo pacman -Syu
+if [[ $EUID -eq 0 ]]; then
+  pacman -Syu
+else
+  sudo pacman -Syu
+fi
 EOF
   chmod +x /usr/local/bin/zib-update
 
@@ -219,8 +227,6 @@ EOF
     chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.zshrc"
   fi
 
-  su - "$TARGET_USER" -c "xdg-user-dirs-update"
-
   install -d -o "$TARGET_USER" -g "$TARGET_USER" "/home/$TARGET_USER/.config"
   cat >"/home/$TARGET_USER/.config/mimeapps.list" <<'EOF'
 [Default Applications]
@@ -239,28 +245,46 @@ export XDG_SESSION_TYPE=wayland
 EOF
 }
 
-run_first_boot() {
-  log "Running first-boot provisioning"
-  /usr/local/bin/zib-first-boot "$TARGET_USER"
-}
-
 install_first_boot_script() {
+  if [[ ! -f /root/first_boot.sh ]]; then
+    echo "Error: /root/first_boot.sh not found. Cannot install first-boot script."
+    exit 1
+  fi
+
   install -d /usr/local/bin
-  cp /root/first_boot.sh /usr/local/bin/zib-first-boot
-  chmod +x /usr/local/bin/zib-first-boot
+  install -m 755 /root/first_boot.sh /usr/local/bin/zib-first-boot
+
+  # Register as a systemd one-shot service so it runs on first real boot,
+  # not inside the chroot where su - and user environment are unreliable.
+  cat >/etc/systemd/system/zib-first-boot.service <<EOF
+[Unit]
+Description=zib first-boot user provisioning
+After=multi-user.target
+ConditionPathExists=/usr/local/bin/zib-first-boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zib-first-boot $TARGET_USER
+ExecStartPost=/bin/rm -f /usr/local/bin/zib-first-boot
+ExecStartPost=/bin/systemctl disable zib-first-boot.service
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  systemctl enable zib-first-boot.service
 }
 
 main() {
   log "Installing repository packages"
   install_repo_packages
-  install_terminal_package
   configure_services
   configure_greetd
   configure_gpu_defaults
   configure_user_defaults
   install_first_boot_script
-  run_first_boot
-  log "Post-install completed"
+  log "Post-install completed. Reboot to trigger first-boot provisioning."
 }
 
 main
