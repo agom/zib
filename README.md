@@ -29,6 +29,7 @@ git clone https://github.com/agom/zib.git
 cd zib
 ```
 
+
 ### 2. Set your credentials
 
 Edit `installer/archinstall/credentials.json` before running the installer:
