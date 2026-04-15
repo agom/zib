@@ -1,6 +1,6 @@
-# zib
+# Zib OS
 
-An opinionated Arch Linux installer that sets up a Hyprland Wayland desktop from a base ISO.
+Arch-based Linux remix.
 
 **What you get:**
 - Hyprland compositor with Waybar, Wofi, and Mako notifications
@@ -123,11 +123,11 @@ This builds and installs `yay`, then installs:
 
 ## Default keybindings
 
-| Key | Action |
-|-----|--------|
-| `Super + Return` | Open terminal |
+| Key              | Action              |
+| ---------------- | ------------------- |
+| `Super + Return` | Open terminal       |
 | `Super + Space`  | App launcher (Wofi) |
-| `Super + Q`      | Close window |
+| `Super + Q`      | Close window        |
 
 ---
 
