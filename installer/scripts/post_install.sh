@@ -85,6 +85,7 @@ install_repo_packages() {
     cliphist
     mako
     ttf-jetbrains-mono-nerd
+    ttf-font-awesome
     noto-fonts
     noto-fonts-emoji
     xdg-user-dirs
